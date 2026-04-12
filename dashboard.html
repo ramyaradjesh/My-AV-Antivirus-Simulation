@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Antivirus Simulation Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; }
+  .wrapper { max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+
+  /* Header */
+  .header { background: #1a2540; color: #fff; border-radius: 14px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; }
+  .header-icon { font-size: 2.5rem; }
+  .header h1 { font-size: 1.4rem; font-weight: 600; }
+  .header p  { opacity: .6; font-size: 12px; margin-top: 3px; }
+  .vt-badge { background: #2563eb22; border: 1px solid #2563eb55; color: #93c5fd; font-size: 11px; padding: 3px 10px; border-radius: 99px; margin-top: 6px; display: inline-block; }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .stat-card { background: #fff; border-radius: 10px; padding: 1rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+  .stat-label { font-size: 11px; color: #888; margin-top: 4px; }
+  .stat-card.clean .stat-value      { color: #16a34a; }
+  .stat-card.threat .stat-value     { color: #dc2626; }
+  .stat-card.local .stat-value      { color: #7c3aed; }
+  .stat-card.vt .stat-value         { color: #2563eb; }
+  .stat-card.quarantine .stat-value { color: #d97706; }
+
+  /* Panels */
+  .panel { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 1.25rem; overflow: hidden; }
+  .panel-header { padding: .85rem 1.5rem; border-bottom: 1px solid #f0f0f0; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
+  .panel-body { padding: 1rem 1.5rem; }
+
+  /* Scanner controls */
+  .scan-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .scan-row input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; font-family: monospace; background: #f9fafb; }
+  .btn { padding: 8px 16px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; font-size: 13px; cursor: pointer; transition: all .15s; font-weight: 500; }
+  .btn:hover { background: #f3f4f6; }
+  .btn.primary { background: #1a2540; color: #fff; border-color: #1a2540; }
+  .btn.primary:hover { background: #0f172a; }
+  .btn.blue { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .btn.blue:hover { background: #1d4ed8; }
+  .btn.green { background: #16a34a; color: #fff; border-color: #16a34a; }
+
+  /* VT toggle */
+  .vt-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 10px 14px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; }
+  .vt-row label { font-size: 13px; font-weight: 500; color: #1e40af; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .vt-hint { font-size: 11px; color: #6b7280; }
+  .api-key-row { display: flex; gap: 8px; align-items: center; }
+  .api-key-row input { flex: 1; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; font-family: monospace; }
+
+  /* Progress */
+  .progress-wrap { display: none; margin-bottom: 10px; }
+  .progress-wrap.visible { display: block; }
+  .progress-bg { background: #f3f4f6; border-radius: 6px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #2563eb; border-radius: 6px; transition: width .3s; }
+  .progress-label { font-size: 11px; color: #6b7280; margin-top: 4px; }
+
+  /* Results table */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 6px 10px; background: #f9fafb; color: #6b7280; font-weight: 500; border-bottom: 1px solid #f0f0f0; font-size: 11px; }
+  td { padding: 9px 10px; border-bottom: 1px solid #f7f7f7; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 600; }
+  .badge.clean    { background: #dcfce7; color: #16a34a; }
+  .badge.threat   { background: #fee2e2; color: #dc2626; }
+  .badge.local    { background: #ede9fe; color: #7c3aed; }
+  .badge.vt       { background: #dbeafe; color: #2563eb; }
+  .badge.quarant  { background: #fef3c7; color: #d97706; }
+  .badge.notfound { background: #f3f4f6; color: #9ca3af; }
+  .badge.cached   { background: #f0fdf4; color: #16a34a; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #f0f0f0; margin-bottom: 12px; }
+  .tab { padding: 7px 14px; font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; color: #6b7280; }
+  .tab.active { color: #1a2540; border-bottom-color: #1a2540; font-weight: 500; }
+
+  /* Sig list */
+  .sig-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f7f7f7; }
+  .sig-item:last-child { border-bottom: none; }
+  .sig-dot { width: 8px; height: 8px; background: #dc2626; border-radius: 50%; flex-shrink: 0; }
+  .sig-name { font-weight: 500; font-size: 13px; }
+  .sig-hash { font-family: monospace; font-size: 11px; color: #9ca3af; }
+
+  /* Quarantine list */
+  .q-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; margin-bottom: 6px; }
+  .q-file { font-size: 12px; font-weight: 500; color: #c2410c; }
+  .q-src  { font-size: 11px; color: #9a3412; }
+
+  /* Log */
+  .log-box { background: #0f172a; border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px; }
+  .log-line { padding: 2px 0; }
+  .log-line.clean  { color: #4ade80; }
+  .log-line.threat { color: #f87171; }
+  .log-line.info   { color: #94a3b8; }
+  .log-line.vt     { color: #60a5fa; }
+
+  /* VT detail */
+  .vt-detail { font-size: 11px; color: #6b7280; }
+  .mono { font-family: monospace; }
+
+  /* Add sig row */
+  .add-row { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
+  .add-row input { flex: 1; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; }
+
+  .empty { text-align: center; padding: 1.5rem; color: #9ca3af; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">🛡️</div>
+    <div>
+      <h1>Antivirus Simulation Dashboard</h1>
+      <p>SHA-256 Signature Scanner + VirusTotal Real Threat Intelligence</p>
+      <div class="vt-badge">Layer 1: Local DB &nbsp;|&nbsp; Layer 2: VirusTotal API (70+ engines)</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value" id="s-total">0</div>
+      <div class="stat-label">Files scanned</div>
+    </div>
+    <div class="stat-card clean">
+      <div class="stat-value" id="s-clean">0</div>
+      <div class="stat-label">Clean</div>
+    </div>
+    <div class="stat-card threat">
+      <div class="stat-value" id="s-threats">0</div>
+      <div class="stat-label">Threats</div>
+    </div>
+    <div class="stat-card vt">
+      <div class="stat-value" id="s-vt">0</div>
+      <div class="stat-label">Caught by VT</div>
+    </div>
+    <div class="stat-card quarantine">
+      <div class="stat-value" id="s-q">0</div>
+      <div class="stat-label">Quarantined</div>
+    </div>
+  </div>
+
+  <!-- Scanner panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Scanner</span>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;color:#6b7280;cursor:pointer">
+        <input type="checkbox" id="q-toggle" checked> Auto-quarantine threats
+      </label>
+    </div>
+    <div class="panel-body">
+
+      <!-- VT row -->
+      <div class="vt-row">
+        <label>
+          <input type="checkbox" id="vt-toggle" checked>
+          Enable VirusTotal (Layer 2)
+        </label>
+        <div class="vt-hint">Checks unknown hashes against 70+ real AV engines</div>
+        <div style="margin-left:auto">
+          <div class="api-key-row">
+            <input type="text" id="vt-key" placeholder="Paste your free VirusTotal API key here" style="width:280px">
+            <button class="btn" onclick="saveKey()" style="font-size:11px;padding:5px 10px">Save key</button>
+          </div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">
+            Get free key at <a href="https://www.virustotal.com" target="_blank" style="color:#2563eb">virustotal.com</a> → Sign up → My API key
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan target -->
+      <div class="scan-row">
+        <input type="text" id="scan-path" value="test_folder/" placeholder="Folder or file path...">
+        <button class="btn primary" onclick="runScan()">Scan</button>
+        <button class="btn green" onclick="loadDemo()">Load demo</button>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-wrap" id="prog-wrap">
+        <div class="progress-bg"><div class="progress-fill" id="prog-bar" style="width:0%"></div></div>
+        <div class="progress-label" id="prog-label">Scanning...</div>
+      </div>
+
+      <!-- Results table -->
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>SHA-256</th>
+            <th>Status</th>
+            <th>Detection source</th>
+            <th>Threat / VT result</th>
+          </tr>
+        </thead>
+        <tbody id="results-body">
+          <tr><td colspan="5" class="empty">Run a scan to see results</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Intelligence panel -->
+  <div class="panel">
+    <div class="panel-header"><span>Threat intelligence & logs</span></div>
+    <div class="panel-body">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('sigs')">Signatures DB</div>
+        <div class="tab" onclick="switchTab('quarantine')">Quarantine</div>
+        <div class="tab" onclick="switchTab('log')">Scan log</div>
+        <div class="tab" onclick="switchTab('vt-cache')">VT cache</div>
+      </div>
+
+      <!-- Signatures -->
+      <div id="tab-sigs">
+        <div id="sig-list"></div>
+        <div class="add-row">
+          <input type="text" id="new-sig-name" placeholder="Threat label (e.g. Trojan.Alpha)">
+          <input type="text" id="new-sig-hash" placeholder="SHA-256 hash">
+          <button class="btn" onclick="addSig()">Add signature</button>
+        </div>
+      </div>
+
+      <!-- Quarantine -->
+      <div id="tab-quarantine" style="display:none">
+        <div id="q-list"><div class="empty">No quarantined files</div></div>
+      </div>
+
+      <!-- Log -->
+      <div id="tab-log" style="display:none">
+        <div class="log-box" id="log-box"><div style="color:#4b5563">Log is empty — run a scan first</div></div>
+      </div>
+
+      <!-- VT cache -->
+      <div id="tab-vt-cache" style="display:none">
+        <div id="vt-cache-list"><div class="empty">No VT lookups yet</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const LOCAL_SIGS = {
+  "281869805c63ee2d7a3b1c90f48a0011": { name: "Trojan.Dropper.Alpha",    added: "2024-01-15" },
+  "f36f330d1a45195f0e83c9aab2107703": { name: "Ransomware.Locky.Variant", added: "2024-02-03" },
+  "bc4ceb01ca8381ac234d9e07b5f1a022": { name: "Spyware.Keylogger.Beta",   added: "2024-03-20" },
+};
+
+const DEMO_FILES = [
+  { name: "documents/report.txt",      hash: "5ec139b161940bb1c4adef30fc17a8a3", simClean: true  },
+  { name: "documents/notes.txt",       hash: "914b8053f5516e554ef5a19b9a2c3d12", simClean: true  },
+  { name: "documents/resume.txt",      hash: "b41dd24bf5ce160c8abc12ef9900f3a1", simClean: true  },
+  { name: "downloads/installer.exe",   hash: "89d087c171b3e6dc0f8c4ab1c7e912d3", simClean: true  },
+  { name: "downloads/photo.jpg",       hash: "13c179301e1653a93b84e0e14d7f8812", simClean: true  },
+  { name: "downloads/free_game.exe",   hash: "281869805c63ee2d7a3b1c90f48a0011", simClean: false, localThreat: "Trojan.Dropper.Alpha" },
+  { name: "documents/invoice.pdf.exe", hash: "f36f330d1a45195f0e83c9aab2107703", simClean: false, localThreat: "Ransomware.Locky.Variant" },
+  { name: "downloads/crack.zip",       hash: "bc4ceb01ca8381ac234d9e07b5f1a022", simClean: false, localThreat: "Spyware.Keylogger.Beta" },
+  // Simulated VT-only catch (not in local DB but VT would flag it)
+  { name: "downloads/update_patch.exe",hash: "a1b2c3d4e5f67890abcdef1234567890", simClean: false, vtThreat: true, vtMalicious: 42, vtTotal: 72 },
+  // A file that is unknown to both
+  { name: "downloads/unknown_tool.bin",hash: "deadbeef12345678abcdef9876543210", simClean: true,  vtNotFound: true },
+];
+
+let signatures = { ...LOCAL_SIGS };
+let quarantine = [];
+let scanLog    = [];
+let vtCache    = {};
+let stats = { total: 0, clean: 0, threats: 0, vt: 0, q: 0 };
+
+function ts() { return new Date().toLocaleTimeString('en-GB', { hour12: false }); }
+
+function updateStats() {
+  document.getElementById('s-total').textContent   = stats.total;
+  document.getElementById('s-clean').textContent   = stats.clean;
+  document.getElementById('s-threats').textContent = stats.threats;
+  document.getElementById('s-vt').textContent      = stats.vt;
+  document.getElementById('s-q').textContent       = stats.q;
+}
+
+function addLog(msg, type='info') {
+  scanLog.push({ ts: ts(), msg, type });
+  renderLog();
+}
+
+function renderLog() {
+  const box = document.getElementById('log-box');
+  if (!scanLog.length) { box.innerHTML = '<div style="color:#4b5563">Log is empty</div>'; return; }
+  box.innerHTML = scanLog.slice().reverse().map(e =>
+    `<div class="log-line ${e.type}">[${e.ts}] ${e.msg}</div>`
+  ).join('');
+}
+
+function renderSigs() {
+  const el = document.getElementById('sig-list');
+  const entries = Object.entries(signatures);
+  if (!entries.length) { el.innerHTML = '<div class="empty">No signatures</div>'; return; }
+  el.innerHTML = entries.map(([h, v]) => `
+    <div class="sig-item">
+      <div class="sig-dot"></div>
+      <div>
+        <div class="sig-name">${v.name}</div>
+        <div class="sig-hash">${h.substring(0,32)}... &nbsp;·&nbsp; added ${v.added}</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderQuarantine() {
+  const el = document.getElementById('q-list');
+  if (!quarantine.length) { el.innerHTML = '<div class="empty">No quarantined files</div>'; return; }
+  el.innerHTML = quarantine.map(q => `
+    <div class="q-item">
+      <div>
+        <div class="q-file">${q.file}</div>
+        <div class="q-src">Source: ${q.source.toUpperCase()} &nbsp;·&nbsp; ${q.threat}</div>
+      </div>
+      <span class="badge quarant">quarantined</span>
+    </div>`).join('');
+}
+
+function renderVtCache() {
+  const el = document.getElementById('vt-cache-list');
+  const entries = Object.entries(vtCache);
+  if (!entries.length) { el.innerHTML = '<div class="empty">No VT lookups cached yet</div>'; return; }
+  el.innerHTML = `
+    <table style="font-size:12px">
+      <thead><tr><th>Hash</th><th>Found</th><th>Malicious</th><th>Total engines</th></tr></thead>
+      <tbody>${entries.map(([h, v]) => `
+        <tr>
+          <td class="mono">${h.substring(0,20)}...</td>
+          <td>${v.found ? '<span class="badge vt">yes</span>' : '<span class="badge notfound">no</span>'}</td>
+          <td style="color:${v.malicious > 0 ? '#dc2626' : '#16a34a'};font-weight:600">${v.malicious}</td>
+          <td>${v.total || '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function saveKey() {
+  const key = document.getElementById('vt-key').value.trim();
+  if (key) alert('API key saved for this session! In your real project, paste it into virustotal_lookup.py');
+}
+
+function switchTab(name) {
+  const names = ['sigs','quarantine','log','vt-cache'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', names[i] === name));
+  names.forEach(n => {
+    const el = document.getElementById('tab-' + n);
+    if (el) el.style.display = n === name ? 'block' : 'none';
+  });
+}
+
+function addSig() {
+  const name = document.getElementById('new-sig-name').value.trim();
+  const hash = document.getElementById('new-sig-hash').value.trim();
+  if (!name || hash.length < 8) return;
+  signatures[hash] = { name, added: new Date().toISOString().slice(0,10) };
+  document.getElementById('new-sig-name').value = '';
+  document.getElementById('new-sig-hash').value = '';
+  renderSigs();
+  addLog(`Signature added: ${name}`, 'info');
+}
+
+async function runScan() {
+  const path   = document.getElementById('scan-path').value.trim() || 'test_folder/';
+  const useVT  = document.getElementById('vt-toggle').checked;
+  const doQ    = document.getElementById('q-toggle').checked;
+
+  stats = { total: 0, clean: 0, threats: 0, vt: 0, q: 0 };
+  quarantine = [];
+  updateStats();
+
+  const tbody = document.getElementById('results-body');
+  tbody.innerHTML = '';
+  const wrap = document.getElementById('prog-wrap');
+  const bar  = document.getElementById('prog-bar');
+  const lbl  = document.getElementById('prog-label');
+  wrap.classList.add('visible');
+
+  addLog(`Scan started: ${path}${useVT ? ' [+VirusTotal]' : ''}`, 'info');
+
+  const files = DEMO_FILES;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const pct = Math.round(((i+1)/files.length)*100);
+    bar.style.width = pct + '%';
+    lbl.textContent = `Scanning ${f.name}... (${i+1}/${files.length})`;
+    await new Promise(r => setTimeout(r, useVT && !f.simClean ? 600 : 250));
+
+    let status = 'CLEAN', source = null, threatName = null, vtResult = null;
+
+    // Layer 1: local DB
+    if (signatures[f.hash]) {
+      status     = 'THREAT';
+      source     = 'local';
+      threatName = signatures[f.hash].name;
+      addLog(`THREAT [LOCAL] | ${f.name} | ${threatName}`, 'threat');
+
+    // Layer 2: VirusTotal simulation
+    } else if (useVT) {
+      if (f.vtThreat) {
+        vtResult   = { found: true, malicious: f.vtMalicious, total: f.vtTotal };
+        status     = 'THREAT';
+        source     = 'virustotal';
+        threatName = `VirusTotal (${f.vtMalicious}/${f.vtTotal} engines flagged)`;
+        vtCache[f.hash] = vtResult;
+        addLog(`THREAT [VT] | ${f.name} | ${threatName}`, 'vt');
+      } else if (f.vtNotFound) {
+        vtResult = { found: false, malicious: 0, total: 0 };
+        vtCache[f.hash] = vtResult;
+        addLog(`CLEAN [VT: not in database] | ${f.name}`, 'vt');
+      } else {
+        vtResult = { found: true, malicious: 0, total: 68 };
+        vtCache[f.hash] = vtResult;
+        addLog(`CLEAN [VT: 0/68] | ${f.name}`, 'clean');
+      }
+    } else {
+      addLog(`CLEAN | ${f.name}`, 'clean');
+    }
+
+    // Quarantine
+    let quarantinedTo = null;
+    if (status === 'THREAT' && doQ) {
+      quarantinedTo = `quarantine/${f.name.split('/').pop()}`;
+      quarantine.push({ file: f.name, threat: threatName, source });
+      addLog(`QUARANTINED | ${f.name} -> ${quarantinedTo}`, 'info');
+      stats.q++;
+    }
+
+    // Stats
+    stats.total++;
+    if (status === 'THREAT') {
+      stats.threats++;
+      if (source === 'virustotal') stats.vt++;
+    } else {
+      stats.clean++;
+    }
+    updateStats();
+
+    // Build row
+    const statusBadge = status === 'THREAT'
+      ? '<span class="badge threat">THREAT</span>'
+      : '<span class="badge clean">CLEAN</span>';
+
+    const sourceBadge = source === 'local'
+      ? '<span class="badge local">Local DB</span>'
+      : source === 'virustotal'
+      ? '<span class="badge vt">VirusTotal</span>'
+      : useVT ? '<span class="badge cached">VT checked</span>' : '—';
+
+    let vtCol = '—';
+    if (threatName) {
+      vtCol = `<span style="color:#dc2626;font-weight:500;font-size:11px">${threatName}</span>`;
+    } else if (vtResult) {
+      if (!vtResult.found) {
+        vtCol = '<span class="badge notfound">Not in VT DB</span>';
+      } else {
+        vtCol = `<span class="vt-detail">0 / ${vtResult.total} engines</span>`;
+      }
+    }
+
+    let qBadge = '';
+    if (quarantinedTo) qBadge = ' <span class="badge quarant">quarantined</span>';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono" style="font-size:11px">${f.name}${qBadge}</td>
+      <td class="mono" style="color:#9ca3af;font-size:10px">${f.hash.substring(0,14)}...</td>
+      <td>${statusBadge}</td>
+      <td>${sourceBadge}</td>
+      <td>${vtCol}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  bar.style.width = '100%';
+  lbl.textContent = `Done — ${stats.total} files scanned, ${stats.threats} threats (${stats.vt} via VT)`;
+  addLog(`Scan complete. Total:${stats.total} Clean:${stats.clean} Threats:${stats.threats} VT:${stats.vt} Quarantined:${stats.q}`, 'info');
+  renderQuarantine();
+  renderVtCache();
+}
+
+function loadDemo() {
+  document.getElementById('scan-path').value = 'test_folder/';
+  runScan();
+}
+
+renderSigs();
+renderLog();
+</script>
+</body>
+</html>
