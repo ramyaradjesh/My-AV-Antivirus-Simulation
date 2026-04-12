@@ -18,7 +18,7 @@ import json
 import os
 
 # ── Paste your VirusTotal API key here ───────────────────────────────────────
-VT_API_KEY = "PASTE_YOUR_KEY_HERE"
+VT_API_KEY = "d87f0c2c59ad5eca4dd700e8e68687530d4ec1a6ca8c738a308dfa585005fdfc"
 
 # ── VirusTotal API endpoint ───────────────────────────────────────────────────
 VT_URL = "https://www.virustotal.com/api/v3/files/{}"
