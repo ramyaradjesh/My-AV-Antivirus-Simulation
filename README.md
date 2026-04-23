@@ -216,16 +216,6 @@ log_event()  -->  write to scan_log.txt
 - [x] HTML scan report generator
 - [x] VT result caching
 
-### Planned
-- [ ] Real-time folder monitoring (watchdog library)
-- [ ] Desktop GUI application (customtkinter)
-- [ ] System tray icon (pystray)
-- [ ] Encrypted quarantine (cryptography library)
-- [ ] Standalone .exe packaging (PyInstaller)
-- [ ] YARA rule scanning
-
----
-
 ## Notes
 
 - Educational use only
